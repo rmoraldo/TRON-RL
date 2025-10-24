@@ -1,6 +1,10 @@
-from typing import Optional
 import numpy as np
+from scipy.linalg import block_diag
+import matplotlib
+from matplotlib import pyplot as plt
 import gymnasium as gym
+from gymnasium.error import DependencyNotInstalled
+from typing import Optional
 
 class GridWorldEnv(gym.Env):
 
@@ -36,6 +40,12 @@ class GridWorldEnv(gym.Env):
             2: np.array([-1, 0]),  # Move left (negative x)
             3: np.array([0, -1]),  # Move down (negative y)
         }
+
+        #init rendering variables for PyGame
+        self.window = None
+        self.clock = None
+        self.window_size = (512, 512)  # Fixed window size for rendering
+        self.window_cell_size = self.window_size[0] // self.size  # Size of each grid cell
 
     def _get_obs(self):
         """Convert internal state to observation format.
@@ -91,22 +101,77 @@ class GridWorldEnv(gym.Env):
 
 
     #rendering stuff:
+
+    #rendering stuff:
     def render(self):
         """Render the environment for human viewing."""
-        if self.render_mode == "human":
-            # Print a simple ASCII representation
-            for y in range(self.size - 1, -1, -1):  # Top to bottom
-                row = ""
-                for x in range(self.size):
-                    if np.array_equal([x, y], self._agent_location):
-                        row += "A "  # Agent
-                    elif np.array_equal([x, y], self._target_location):
-                        row += "T "  # Target
-                    else:
-                        row += ". "  # Empty
-                print(row)
-            print()
+        # PyGame has a different coordinate system (flip)
+        try:
+            import pygame
+        except ImportError as e:
+            raise DependencyNotInstalled(
+                "pygame is not installed, run `pip install gymnasium[classic-control]`"
+            ) from e
 
+        if self.window is None and self.render_mode == "human":
+            pygame.init()
+            pygame.display.init()
+            self.window = pygame.display.set_mode(np.flip(self.window_size))
+        if self.clock is None and self.render_mode == "human":
+            self.clock = pygame.time.Clock()
+
+        canvas = pygame.Surface(np.flip(self.window_size))
+        canvas.fill((255, 255, 255))
+
+        #drawing target first time
+        pygame.draw.rect(
+            canvas,
+            (255, 0, 0),
+            pygame.Rect(
+                self.window_cell_size * np.flip(self._target_location),
+                (self.window_cell_size, self.window_cell_size),
+                ),
+        )
+
+        #draw agent
+        pygame.draw.circle(
+            canvas,
+            (0, 0, 255),
+            (np.flip(self._agent_location) + 0.5) * self.window_cell_size,
+            self.window_cell_size / 3,
+            )
+
+        #grid
+        for i in range(self.size):
+            pygame.draw.line(
+                canvas,
+                0,
+                (0, self.window_cell_size * i),
+                (self.window_size[1], self.window_cell_size * i),
+                width=1,
+            )
+        for i in range(self.size):
+            pygame.draw.line(
+                canvas,
+                0,
+                (self.window_cell_size * i, 0),
+                (self.window_cell_size * i, self.window_size[0]),
+                width=1,
+            )
+
+        if self.render_mode == "human":
+            # The following line copies our drawings from `canvas` to the visible window
+            self.window.blit(canvas, canvas.get_rect())
+            pygame.event.pump()
+            pygame.display.update()
+
+            # We need to ensure that human-rendering occurs at the predefined framerate.
+            # The following line will automatically add a delay to keep the framerate stable.
+            self.clock.tick(self.metadata["render_fps"])
+        else:  # rgb_array
+            return np.transpose(
+                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
+            )
     #agent behaviour stuff:
 
     def step(self, action):
@@ -146,3 +211,10 @@ class GridWorldEnv(gym.Env):
         info = self._get_info()
 
         return observation, reward, terminated, truncated, info
+
+    #close
+    def close(self):
+        if self.window is not None:
+            import pygame
+            pygame.display.quit()
+            pygame.quit()
