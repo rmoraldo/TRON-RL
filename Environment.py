@@ -4,10 +4,11 @@ import gymnasium as gym
 
 class GridWorldEnv(gym.Env):
 
-    def __init__(self, size: int = 64):
+    def __init__(self, size: int = 64, reward_scale: float = 1.0, step_reward: float = 0.1):
         # The size of the square grid (5x5 by default)
         self.size = size
-
+        self.reward_scale = reward_scale
+        self.step_reward = step_reward
         # Initialize positions - will be set randomly in reset()
         # Using -1,-1 as "uninitialized" state
         #self._agent_location = np.array([-1, -1], dtype=np.int32)
@@ -107,13 +108,6 @@ class GridWorldEnv(gym.Env):
             print()
 
     #agent behaviour stuff:
-    #init with 0.1 step reward by default
-    def __init__(self, size: int = 5, reward_scale: float = 1.0, step_reward: float = 0.1):
-        self.size = size
-        self.reward_scale = reward_scale
-        self.step_reward = step_reward
-        # ... rest of init ...
-
 
     def step(self, action):
         """Execute one timestep within the environment.
